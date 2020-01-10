@@ -30,7 +30,7 @@
           </ion-segment-button>
           <ion-segment-button>
             <ion-icon name="briefcase"></ion-icon>
-            <ion-label>Trips</ion-label>
+            <ion-label>TripsTripsTrips</ion-label>
           </ion-segment-button>
         </ion-segment>
       </ion-toolbar>
@@ -214,6 +214,10 @@
         for (var i = 0; i < segmentButtons.length; i++) {
           segmentButtons[i].layout = (mode === 'ios') ? 'icon-hide' : 'icon-top';
         }
+        
+        segment.addEventListener('ionSelect', (ev) => {
+          console.log('select',ev);
+        })
       }
       document.addEventListener('DOMContentLoaded', () => {
         requestAnimationFrame(() => {

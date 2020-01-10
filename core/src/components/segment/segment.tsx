@@ -1,4 +1,4 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Listen, Prop, State, Watch, h, writeTask } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Listen, Prop, State, Watch, h, readTask, writeTask } from '@stencil/core';
 
 import { getIonMode } from '../../global/ionic-global';
 import { Color, SegmentChangeEventDetail, StyleEventDetail } from '../../interface';
@@ -21,6 +21,7 @@ export class Segment implements ComponentInterface {
   private gesture?: Gesture;
   private didInit = false;
   private checked?: HTMLIonSegmentButtonElement;
+  private indicator: HTMLElement | null = null;
 
   @Element() el!: HTMLIonSegmentElement;
 
@@ -83,7 +84,7 @@ export class Segment implements ComponentInterface {
     this.value = current.value;
 
     if (previous && this.scrollable) {
-      this.checkButton(previous, current);
+      this.checkButton(current);
     }
 
     this.checked = current;
@@ -121,6 +122,20 @@ export class Segment implements ComponentInterface {
     this.disabledChanged();
 
     this.didInit = true;
+    this.indicator = this.el.shadowRoot && this.el.shadowRoot.querySelector('.segment-button-indicator');
+    this.updateIndicatorWidth();
+  }
+
+  componentDidUpdate() {
+    this.updateIndicatorWidth();
+  }
+
+  updateIndicatorWidth() {
+    const numButtons = this.getButtons();
+    if (this.indicator && numButtons.length > 0) {
+      const width = numButtons[0].clientWidth;
+      this.indicator.style.setProperty('width', `${width}px`);
+    }
   }
 
   onStart(detail: GestureDetail) {
@@ -139,9 +154,9 @@ export class Segment implements ComponentInterface {
     detail.event.preventDefault();
     detail.event.stopImmediatePropagation();
 
-    if (detail.event) {
-      this.addRipple(detail);
-    }
+    this.addRipple(detail);
+
+    this.indicator!.style.removeProperty('--indicator-scale');
   }
 
   /**
@@ -185,41 +200,21 @@ export class Segment implements ComponentInterface {
     }
   }
 
-  private getIndicator(button: HTMLIonSegmentButtonElement): HTMLDivElement | null {
-    return button.shadowRoot && button.shadowRoot.querySelector('.segment-button-indicator');
-  }
-
-  private checkButton(previous: HTMLIonSegmentButtonElement, current: HTMLIonSegmentButtonElement) {
-    const previousIndicator = this.getIndicator(previous);
-    const currentIndicator = this.getIndicator(current);
-
-    if (previousIndicator === null || currentIndicator === null) {
+  private checkButton(current: HTMLIonSegmentButtonElement) {
+    const indicator = this.indicator;
+    if (indicator === null) {
       return;
     }
 
-    const previousClientRect = previousIndicator.getBoundingClientRect();
-    const currentClientRect = currentIndicator.getBoundingClientRect();
+    readTask(() => {
+      const offsetLeft = current.offsetLeft;
 
-    const widthDelta = previousClientRect.width / currentClientRect.width;
-    const xPosition = previousClientRect.left - currentClientRect.left;
-
-    // Scale the indicator width to match the previous indicator width
-    // and translate it on top of the previous indicator
-    const transform = `translate3d(${xPosition}px, 0, 0) scaleX(${widthDelta})`;
-
-    writeTask(() => {
-      // Remove the transition before positioning on top of the previous indicator
-      currentIndicator.classList.remove('segment-button-indicator-animated');
-      currentIndicator.style.setProperty('transform', transform);
-
-      // Force a repaint to ensure the transform happens
-      currentIndicator.getBoundingClientRect();
-
-      // Add the transition to move the indicator into place
-      currentIndicator.classList.add('segment-button-indicator-animated');
-
-      // Remove the transform to slide the indicator back to the button clicked
-      currentIndicator.style.setProperty('transform', '');
+      writeTask(() => {
+        indicator.style.setProperty('--indicator-translate', `0, 0, 0`);
+        writeTask(() => {
+          indicator.style.setProperty('--indicator-translate', `${offsetLeft}px, 0, 0`);
+        });
+      });
     });
 
     current.checked = true;
@@ -310,7 +305,7 @@ export class Segment implements ComponentInterface {
     }
 
     if (previous !== current) {
-      this.checkButton(previous, current);
+      this.checkButton(current);
     }
   }
 
@@ -346,6 +341,15 @@ export class Segment implements ComponentInterface {
           'segment-scrollable': this.scrollable
         }}
       >
+        <div
+          part="indicator"
+          class={{
+            'segment-button-indicator': true,
+            'segment-button-indicator-animated': true
+          }}
+        >
+          <div part="indicator-background" class="segment-button-indicator-background"></div>
+        </div>
         <slot></slot>
       </Host>
     );

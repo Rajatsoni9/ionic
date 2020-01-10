@@ -5,6 +5,12 @@
 // --------------------------------------------------
 
 :host {
+  --indicator-box-shadow: #{$segment-button-ios-box-shadow-checked};
+  --indicator-color: #{$segment-button-ios-indicator-color};
+  --indicator-transition: #{$segment-button-ios-transition-animated};
+  
+  //--indicator-transition: 0.2s all linear;
+  --indicator-transform: none;
   --background: #{$segment-ios-background-color};
 
   @include border-radius($segment-ios-border-radius);
@@ -18,7 +24,6 @@
   opacity: $segment-button-ios-opacity-disabled;
 }
 
-
 // Segment: Color
 // --------------------------------------------------
 
@@ -29,15 +34,6 @@
 :host(.ion-color) ::slotted(.segment-button-checked) {
   color: #000;
 }
-
-
-// Segment: Activated
-// --------------------------------------------------
-
-:host(.segment-activated) ::slotted(ion-segment-button) {
-  --indicator-transform: scale(0.95);
-}
-
 
 // Segment: Default Toolbar
 // --------------------------------------------------
@@ -79,4 +75,49 @@
   :host(.in-toolbar-color:not(.ion-color)) ::slotted(.segment-button-checked:hover) {
     color: #{current-color(base)};
   }
+}
+
+// Segment Button: Checked Indicator
+// --------------------------------------------------
+
+:host(.segment-activated) .segment-button-indicator {
+  --indicator-scale: 0.95;
+}
+
+.segment-button-indicator {
+  --indicator-translate: 0, 0, 0;
+  --indicator-scale: 1;
+
+  @include padding(null, $segment-button-ios-margin);
+  @include position(2px, 0, 0, 0);
+  
+  height: calc(100% - 4px);
+  
+  transform: translate3d(var(--indicator-translate)) scale(var(--indicator-scale));
+  
+  z-index: -1;
+}
+
+.segment-button-indicator-background {
+  @include border-radius($segment-button-ios-border-radius);
+
+  background: var(--indicator-color);
+}
+
+.segment-button-indicator-background {
+  transition: var(--indicator-transition);
+}
+
+// Segment Button: Toolbar
+// --------------------------------------------------
+
+// Segment button indicator color should use the global variable with
+// a fallback to the local variable
+:host(.in-toolbar) .segment-button-indicator-background {
+  background: #{var(--ion-toolbar-segment-indicator-color, var(--indicator-color))};
+}
+
+// Do not use the global or local CSS variable if the toolbar has a color
+:host(.in-toolbar-color) .segment-button-indicator-background {
+  background: #fff;
 }

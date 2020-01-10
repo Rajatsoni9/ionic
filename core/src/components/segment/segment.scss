@@ -6,6 +6,11 @@
 :host {
   /**
    * @prop --background: Background of the segment button
+   *
+   * @prop --indicator-box-shadow: Box shadow on the indicator for the checked segment button
+   * @prop --indicator-color: Color of the indicator for the checked segment button
+   * @prop --indicator-transition: Transition of the indicator for the checked segment button
+   * @prop --indicator-transform: Transform of the indicator for the checked segment button
    */
   --ripple-color: currentColor;
 
@@ -28,7 +33,6 @@
 
   contain: paint;
 }
-
 
 // Segment: Disabled
 // --------------------------------------------------
@@ -67,5 +71,52 @@
   // Default Segment, In a Default Toolbar, Checked / Hover
   :host(.in-toolbar:not(.ion-color)) ::slotted(.segment-button-checked:hover) {
     color: var(--ion-toolbar-segment-color-hover, var(--color-hover, var(--ion-toolbar-segment-color-checked, var(--color-checked))));
+  }
+}
+
+// Segment Button: Indicator
+// --------------------------------------------------
+
+.segment-button-indicator {
+  @include transform-origin(center);
+
+  position: absolute;
+
+  // temp
+  //opacity: 0;
+
+  box-sizing: border-box;
+
+  will-change: transform, opacity;
+}
+
+.segment-button-indicator-background {
+  width: 100%;
+  height: 100%;
+
+  transform: var(--indicator-transform);
+
+  box-shadow: var(--indicator-box-shadow);
+}
+
+.segment-button-indicator-animated {
+  transition: var(--indicator-transition);
+}
+
+:host(.segment-button-checked) .segment-button-indicator {
+  opacity: 1;
+}
+
+
+// Segment: Reduced Motion
+// --------------------------------------------------
+
+@media (prefers-reduced-motion: reduce) {
+  .segment-button-indicator-background {
+    transform: none;
+  }
+
+  .segment-button-indicator-animated {
+    transition: none;
   }
 }

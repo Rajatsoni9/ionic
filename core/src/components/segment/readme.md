@@ -456,9 +456,13 @@ export const SegmentExample: React.FC = () => (
 
 ## CSS Custom Properties
 
-| Name           | Description                      |
-| -------------- | -------------------------------- |
-| `--background` | Background of the segment button |
+| Name                     | Description                                                |
+| ------------------------ | ---------------------------------------------------------- |
+| `--background`           | Background of the segment button                           |
+| `--indicator-box-shadow` | Box shadow on the indicator for the checked segment button |
+| `--indicator-color`      | Color of the indicator for the checked segment button      |
+| `--indicator-transform`  | Transform of the indicator for the checked segment button  |
+| `--indicator-transition` | Transition of the indicator for the checked segment button |
 
 
 ----------------------------------------------

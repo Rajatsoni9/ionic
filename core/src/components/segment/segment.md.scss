@@ -5,6 +5,10 @@
 // --------------------------------------------------
 
 :host {
+  --indicator-box-shadow: none;
+  --indicator-color: var(--color-checked);
+  --indicator-transition: #{$segment-button-md-transition-animated};
+  --indicator-transform: none;
   --background: transparent;
 }
 
@@ -81,4 +85,33 @@
 
 :host(.segment-scrollable) ::slotted(ion-segment-button) {
   min-width: $segment-button-md-min-width;
+}
+
+// Segment Button: Indicator
+// --------------------------------------------------
+
+.segment-button-indicator {
+  --indicator-translate: 0, 0, 0;
+  --indicator-scale: 1;
+
+  @include position(null, 0, 0, 0);
+  
+  transform: translate3d(var(--indicator-translate)) scaleX(var(--indicator-scale));
+}
+
+.segment-button-indicator-background {
+  height: 2px;
+
+  background: var(--indicator-color);
+}
+
+// Segment button indicator color should use the background checked variable with
+// a fallback to the default value of --indicator-color
+:host(.in-toolbar) .segment-button-indicator-background {
+  background: #{var(--ion-toolbar-segment-indicator-color, var(--indicator-color))};
+}
+
+// Do not use the global or local CSS variable if the toolbar has a color
+:host(.in-toolbar-color) .segment-button-indicator-background {
+  background: #{current-color(contrast)};
 }

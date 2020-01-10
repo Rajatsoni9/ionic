@@ -103,16 +103,6 @@ export class SegmentButton implements ComponentInterface, ButtonInterface {
           <slot></slot>
           {mode === 'md' && <ion-ripple-effect></ion-ripple-effect>}
         </button>
-        <div
-          part="indicator"
-          class={{
-            'segment-button-indicator': true,
-            'segment-button-indicator-animated': true
-          }}
-        >
-          <div part="indicator-background" class="segment-button-indicator-background"></div>
-        </div>
-
       </Host>
     );
   }
