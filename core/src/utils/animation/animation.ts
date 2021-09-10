@@ -1,5 +1,3 @@
-// TODO: Add more tests. until then, be sure to manually test menu and swipe to go back/routing transitions
-
 import { raf } from '../helpers';
 
 import { Animation, AnimationCallbackOptions, AnimationDirection, AnimationFill, AnimationKeyFrame, AnimationKeyFrameEdge, AnimationKeyFrames, AnimationLifecycle, AnimationPlayOptions } from './animation-interface';
@@ -72,12 +70,12 @@ export const createAnimation = (animationId?: string): Animation => {
     return webAnimations;
   };
 
-  const destroy = () => {
+  const destroy = (clearStyleSheets?: boolean) => {
     childAnimations.forEach(childAnimation => {
-      childAnimation.destroy();
+      childAnimation.destroy(clearStyleSheets);
     });
 
-    cleanUp();
+    cleanUp(clearStyleSheets);
 
     elements.length = 0;
     childAnimations.length = 0;
@@ -97,9 +95,24 @@ export const createAnimation = (animationId?: string): Animation => {
    * animation's elements, and removes the
    * animation's stylesheets from the DOM.
    */
-  const cleanUp = () => {
+  const cleanUp = (clearStyleSheets?: boolean) => {
     cleanUpElements();
-    cleanUpStyleSheets();
+
+    if (clearStyleSheets) {
+      cleanUpStyleSheets();
+    }
+  };
+
+  const resetFlags = () => {
+    shouldForceLinearEasing = false;
+    shouldForceSyncPlayback = false;
+    shouldCalculateNumAnimations = true;
+    forceDirectionValue = undefined;
+    forceDurationValue = undefined;
+    forceDelayValue = undefined;
+    numAnimationsRunning = 0;
+    finished = false;
+    willComplete = true;
   };
 
   const onFinish = (callback: AnimationLifecycle, opts?: AnimationCallbackOptions) => {
@@ -494,9 +507,10 @@ export const createAnimation = (animationId?: string): Animation => {
   const initializeCSSAnimation = (toggleAnimationName = true) => {
     cleanUpStyleSheets();
 
+    const processedKeyframes = processKeyframes(_keyframes);
     elements.forEach(element => {
-      if (_keyframes.length > 0) {
-        const keyframeRules = generateKeyframeRules(_keyframes);
+      if (processedKeyframes.length > 0) {
+        const keyframeRules = generateKeyframeRules(processedKeyframes);
         keyframeName = (animationId !== undefined) ? animationId : generateKeyframeName(keyframeRules);
         const stylesheet = createKeyframeStylesheet(keyframeName, keyframeRules, element);
         stylesheets.push(stylesheet);
@@ -526,10 +540,8 @@ export const createAnimation = (animationId?: string): Animation => {
   };
 
   const initializeWebAnimation = () => {
-    const processedKeyframes = processKeyframes(_keyframes);
-
     elements.forEach(element => {
-      const animation = element.animate(processedKeyframes, {
+      const animation = element.animate(_keyframes, {
         id,
         delay: getDelay(),
         duration: getDuration(),
@@ -567,7 +579,7 @@ export const createAnimation = (animationId?: string): Animation => {
   };
 
   const setAnimationStep = (step: number) => {
-    step = Math.min(Math.max(step, 0), 0.999);
+    step = Math.min(Math.max(step, 0), 0.9999);
     if (supportsWebAnimations) {
       webAnimations.forEach(animation => {
         animation.currentTime = animation.effect.getComputedTiming().delay + (getDuration() * step);
@@ -887,6 +899,8 @@ export const createAnimation = (animationId?: string): Animation => {
       cleanUpElements();
       initialized = false;
     }
+
+    resetFlags();
   };
 
   const from = (property: string, value: any) => {

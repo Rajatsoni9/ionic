@@ -1,7 +1,8 @@
-import { writeTask } from '@stencil/core';
+import { Build, writeTask } from '@stencil/core';
 
 import { LIFECYCLE_DID_ENTER, LIFECYCLE_DID_LEAVE, LIFECYCLE_WILL_ENTER, LIFECYCLE_WILL_LEAVE } from '../../components/nav/constants';
 import { Animation, AnimationBuilder, NavDirection, NavOptions } from '../../interface';
+import { componentOnReady } from '../helpers';
 
 const iosTransitionAnimation = () => import('./ios.transition');
 const mdTransitionAnimation = () => import('./md.transition');
@@ -36,15 +37,25 @@ const beforeTransition = (opts: TransitionOptions) => {
     enteringEl.classList.remove('can-go-back');
   }
   setPageHidden(enteringEl, false);
+
+  /**
+   * When transitioning, the page should not
+   * respond to click events. This resolves small
+   * issues like users double tapping the ion-back-button.
+   * These pointer events are removed in `afterTransition`.
+   */
+  enteringEl.style.setProperty('pointer-events', 'none');
+
   if (leavingEl) {
     setPageHidden(leavingEl, false);
+    leavingEl.style.setProperty('pointer-events', 'none');
   }
 };
 
 const runTransition = async (opts: TransitionOptions): Promise<TransitionResult> => {
   const animationBuilder = await getAnimationBuilder(opts);
 
-  const ani = (animationBuilder)
+  const ani = (animationBuilder && Build.isBrowser)
     ? animation(animationBuilder, opts)
     : noAnimation(opts); // fast path for no animation
 
@@ -55,8 +66,10 @@ const afterTransition = (opts: TransitionOptions) => {
   const enteringEl = opts.enteringEl;
   const leavingEl = opts.leavingEl;
   enteringEl.classList.remove('ion-page-invisible');
+  enteringEl.style.removeProperty('pointer-events');
   if (leavingEl !== undefined) {
     leavingEl.classList.remove('ion-page-invisible');
+    leavingEl.style.removeProperty('pointer-events');
   }
 };
 
@@ -178,8 +191,8 @@ export const lifecycle = (el: HTMLElement | undefined, eventName: string) => {
 };
 
 const shallowReady = (el: Element | undefined): Promise<any> => {
-  if (el && (el as any).componentOnReady) {
-    return (el as any).componentOnReady();
+  if (el) {
+    return new Promise(resolve => componentOnReady(el, resolve));
   }
   return Promise.resolve();
 };

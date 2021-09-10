@@ -1,8 +1,7 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Prop, Watch, h } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Listen, Prop, Watch, h } from '@stencil/core';
 
 import { getIonMode } from '../../global/ionic-global';
 import { RadioGroupChangeEventDetail } from '../../interface';
-import { findCheckedOption, watchForOptions } from '../../utils/watch-options';
 
 @Component({
   tag: 'ion-radio-group'
@@ -11,7 +10,7 @@ export class RadioGroup implements ComponentInterface {
 
   private inputId = `ion-rg-${radioGroupIds++}`;
   private labelId = `${this.inputId}-lbl`;
-  private mutationO?: MutationObserver;
+  private label?: HTMLIonLabelElement | null;
 
   @Element() el!: HTMLElement;
 
@@ -32,7 +31,8 @@ export class RadioGroup implements ComponentInterface {
 
   @Watch('value')
   valueChanged(value: any | undefined) {
-    this.updateRadios();
+    this.setRadioTabindex(value);
+
     this.ionChange.emit({ value });
   }
 
@@ -41,110 +41,129 @@ export class RadioGroup implements ComponentInterface {
    */
   @Event() ionChange!: EventEmitter<RadioGroupChangeEventDetail>;
 
+  componentDidLoad() {
+    this.setRadioTabindex(this.value);
+  }
+
+  private setRadioTabindex = (value: any | undefined) => {
+    const radios = this.getRadios();
+
+    // Get the first radio that is not disabled and the checked one
+    const first = radios.find(radio => !radio.disabled);
+    const checked = radios.find(radio => (radio.value === value && !radio.disabled));
+
+    if (!first && !checked) {
+      return;
+    }
+
+    // If an enabled checked radio exists, set it to be the focusable radio
+    // otherwise we default to focus the first radio
+    const focusable = checked || first;
+
+    for (const radio of radios) {
+      const tabindex = radio === focusable ? 0 : -1;
+      radio.setButtonTabindex(tabindex);
+    }
+  }
+
   async connectedCallback() {
     // Get the list header if it exists and set the id
     // this is used to set aria-labelledby
-    const el = this.el;
-    const header = el.querySelector('ion-list-header') || el.querySelector('ion-item-divider');
+    const header = this.el.querySelector('ion-list-header') || this.el.querySelector('ion-item-divider');
     if (header) {
-      const label = header.querySelector('ion-label');
+      const label = this.label = header.querySelector('ion-label');
       if (label) {
         this.labelId = label.id = this.name + '-lbl';
       }
     }
+  }
 
-    if (this.value === undefined) {
-      const radio = findCheckedOption(el, 'ion-radio') as HTMLIonRadioElement | undefined;
-      if (radio !== undefined) {
-        await radio.componentOnReady();
-        if (this.value === undefined) {
-          this.value = radio.value;
+  private getRadios(): HTMLIonRadioElement[] {
+    return Array.from(this.el.querySelectorAll('ion-radio'));
+  }
+
+  private onClick = (ev: Event) => {
+    ev.preventDefault();
+
+    const selectedRadio = ev.target && (ev.target as HTMLElement).closest('ion-radio');
+    if (selectedRadio) {
+      const currentValue = this.value;
+      const newValue = selectedRadio.value;
+      if (newValue !== currentValue) {
+        this.value = newValue;
+      } else if (this.allowEmptySelection) {
+        this.value = undefined;
+      }
+    }
+  }
+
+  @Listen('keydown', { target: 'document' })
+  onKeydown(ev: any) {
+    const inSelectPopover = !!this.el.closest('ion-select-popover');
+
+    if (ev.target && !this.el.contains(ev.target)) {
+      return;
+    }
+
+    // Get all radios inside of the radio group and then
+    // filter out disabled radios since we need to skip those
+    const radios = this.getRadios().filter(radio => !radio.disabled);
+
+    // Only move the radio if the current focus is in the radio group
+    if (ev.target && radios.includes(ev.target)) {
+      const index = radios.findIndex(radio => radio === ev.target);
+      const current = radios[index];
+
+      let next;
+
+      // If hitting arrow down or arrow right, move to the next radio
+      // If we're on the last radio, move to the first radio
+      if (['ArrowDown', 'ArrowRight'].includes(ev.code)) {
+        next = (index === radios.length - 1)
+          ? radios[0]
+          : radios[index + 1];
+      }
+
+      // If hitting arrow up or arrow left, move to the previous radio
+      // If we're on the first radio, move to the last radio
+      if (['ArrowUp', 'ArrowLeft'].includes(ev.code)) {
+        next = (index === 0)
+          ? radios[radios.length - 1]
+          : radios[index - 1];
+      }
+
+      if (next && radios.includes(next)) {
+        next.setFocus(ev);
+
+        if (!inSelectPopover) {
+          this.value = next.value;
         }
       }
-    }
 
-    this.mutationO = watchForOptions<HTMLIonRadioElement>(el, 'ion-radio', newOption => {
-      if (newOption !== undefined) {
-        newOption.componentOnReady().then(() => {
-          this.value = newOption.value;
-        });
-      } else {
-        this.updateRadios();
+      // Update the radio group value when a user presses the
+      // space bar on top of a selected radio
+      if (['Space'].includes(ev.code)) {
+        this.value = (this.allowEmptySelection && this.value !== undefined)
+          ? undefined
+          : current.value;
+
+        // Prevent browsers from jumping
+        // to the bottom of the screen
+        ev.preventDefault();
       }
-    });
-    this.updateRadios();
-  }
-
-  disconnectedCallback() {
-    if (this.mutationO) {
-      this.mutationO.disconnect();
-      this.mutationO = undefined;
-    }
-  }
-
-  private async updateRadios() {
-    /**
-     * Make sure we get all radios first
-     * so values are up to date prior
-     * to caching the radio group value
-     */
-    const radios = await this.getRadios();
-    const { value } = this;
-
-    let hasChecked = false;
-
-    // Walk the DOM in reverse order, since the last selected one wins!
-    for (const radio of radios) {
-      if (!hasChecked && radio.value === value) {
-        // correct value for this radio
-        // but this radio isn't checked yet
-        // and we haven't found a checked yet
-        hasChecked = true;
-        radio.checked = true;
-      } else {
-        // this radio doesn't have the correct value
-        // or the radio group has been already checked
-        radio.checked = false;
-      }
-    }
-
-    // Reset value if
-    if (!hasChecked) {
-      this.value = undefined;
-    }
-  }
-
-  private getRadios() {
-    return Promise.all(
-      Array
-        .from(this.el.querySelectorAll('ion-radio'))
-        .map(r => r.componentOnReady())
-    );
-  }
-
-  private onSelect = (ev: Event) => {
-    const selectedRadio = ev.target as HTMLIonRadioElement | null;
-    if (selectedRadio) {
-      this.value = selectedRadio.value;
-    }
-  }
-
-  private onDeselect = (ev: Event) => {
-    const selectedRadio = ev.target as HTMLIonRadioElement | null;
-    if (selectedRadio) {
-      selectedRadio.checked = false;
-      this.value = undefined;
     }
   }
 
   render() {
+    const { label, labelId } = this;
+    const mode = getIonMode(this);
+
     return (
       <Host
         role="radiogroup"
-        aria-labelledby={this.labelId}
-        onIonSelect={this.onSelect}
-        onIonDeselect={this.allowEmptySelection ? this.onDeselect : undefined}
-        class={getIonMode(this)}
+        aria-labelledby={label ? labelId : null}
+        onClick={this.onClick}
+        class={mode}
       >
       </Host>
     );

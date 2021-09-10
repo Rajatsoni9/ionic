@@ -1,10 +1,9 @@
-import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Method, Prop, State, Watch, h } from '@stencil/core';
+import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Method, Prop, State, Watch, forceUpdate, h } from '@stencil/core';
 
 import { config } from '../../global/config';
 import { getIonMode } from '../../global/ionic-global';
-import { Color, SearchbarChangeEventDetail, StyleEventDetail } from '../../interface';
-import { debounceEvent } from '../../utils/helpers';
-import { sanitizeDOMString } from '../../utils/sanitization';
+import { AutocompleteTypes, Color, SearchbarChangeEventDetail, StyleEventDetail } from '../../interface';
+import { debounceEvent, raf } from '../../utils/helpers';
 import { createColorClasses } from '../../utils/theme';
 
 /**
@@ -34,7 +33,7 @@ export class Searchbar implements ComponentInterface {
    * Default options are: `"primary"`, `"secondary"`, `"tertiary"`, `"success"`, `"warning"`, `"danger"`, `"light"`, `"medium"`, and `"dark"`.
    * For more information on colors, see [theming](/docs/theming/basics).
    */
-  @Prop() color?: Color;
+  @Prop({ reflect: true }) color?: Color;
 
   /**
    * If `true`, enable searchbar animation.
@@ -44,7 +43,7 @@ export class Searchbar implements ComponentInterface {
   /**
    * Set the input's autocomplete property.
    */
-  @Prop() autocomplete: 'on' | 'off' = 'off';
+  @Prop() autocomplete: AutocompleteTypes = 'off';
 
   /**
    * Set the input's autocorrect property.
@@ -68,7 +67,7 @@ export class Searchbar implements ComponentInterface {
   @Prop() clearIcon?: string;
 
   /**
-   * Set the amount of time, in milliseconds, to wait to trigger the `ionChange` event after each keystroke.
+   * Set the amount of time, in milliseconds, to wait to trigger the `ionChange` event after each keystroke. This also impacts form bindings such as `ngModel` or `v-model`.
    */
   @Prop() debounce = 250;
 
@@ -88,6 +87,13 @@ export class Searchbar implements ComponentInterface {
    * `"email"`, `"numeric"`, `"decimal"`, and `"search"`.
    */
   @Prop() inputmode?: 'none' | 'text' | 'tel' | 'url' | 'email' | 'numeric' | 'decimal' | 'search';
+
+  /**
+   * A hint to the browser for which enter key to display.
+   * Possible values: `"enter"`, `"done"`, `"go"`, `"next"`,
+   * `"previous"`, `"search"`, and `"send"`.
+   */
+  @Prop() enterkeyhint?: 'enter' | 'done' | 'go' | 'next' | 'previous' | 'search' | 'send';
 
   /**
    * Set the input's placeholder.
@@ -114,6 +120,16 @@ export class Searchbar implements ComponentInterface {
    * of focus state.
    */
   @Prop() showCancelButton: 'never' | 'focus' | 'always' = 'never';
+
+  /**
+   * Sets the behavior for the clear button. Defaults to `"focus"`.
+   * Setting to `"focus"` shows the clear button on focus if the
+   * input is not empty.
+   * Setting to `"never"` hides the clear button.
+   * Setting to `"always"` shows the clear button regardless
+   * of focus state, but only if the input is not empty.
+   */
+  @Prop() showClearButton: 'never' | 'focus' | 'always' = 'focus';
 
   /**
    * If `true`, enable spellcheck on the input.
@@ -180,7 +196,7 @@ export class Searchbar implements ComponentInterface {
   protected showCancelButtonChanged() {
     requestAnimationFrame(() => {
       this.positionElements();
-      this.el.forceUpdate();
+      forceUpdate(this);
     });
   }
 
@@ -225,7 +241,7 @@ export class Searchbar implements ComponentInterface {
   /**
    * Clears the input field and triggers the control change.
    */
-  private onClearInput = (ev?: Event) => {
+  private onClearInput = (ev?: Event, shouldFocus?: boolean) => {
     this.ionClear.emit();
 
     if (ev) {
@@ -240,6 +256,16 @@ export class Searchbar implements ComponentInterface {
       if (value !== '') {
         this.value = '';
         this.ionInput.emit();
+
+        /**
+         * When tapping clear button
+         * ensure input is focused after
+         * clearing input so users
+         * can quickly start typing.
+         */
+        if (shouldFocus && !this.focused) {
+          this.setFocus();
+        }
       }
     }, 16 * 4);
   }
@@ -335,27 +361,29 @@ export class Searchbar implements ComponentInterface {
       // Create a dummy span to get the placeholder width
       const doc = document;
       const tempSpan = doc.createElement('span');
-      tempSpan.innerHTML = sanitizeDOMString(this.placeholder) || '';
+      tempSpan.innerText = this.placeholder || '';
       doc.body.appendChild(tempSpan);
 
       // Get the width of the span then remove it
-      const textWidth = tempSpan.offsetWidth;
-      tempSpan.remove();
+      raf(() => {
+        const textWidth = tempSpan.offsetWidth;
+        tempSpan.remove();
 
-      // Calculate the input padding
-      const inputLeft = 'calc(50% - ' + (textWidth / 2) + 'px)';
+        // Calculate the input padding
+        const inputLeft = 'calc(50% - ' + (textWidth / 2) + 'px)';
 
-      // Calculate the icon margin
-      const iconLeft = 'calc(50% - ' + ((textWidth / 2) + 30) + 'px)';
+        // Calculate the icon margin
+        const iconLeft = 'calc(50% - ' + ((textWidth / 2) + 30) + 'px)';
 
-      // Set the input padding start and icon margin start
-      if (isRTL) {
-        inputEl.style.paddingRight = inputLeft;
-        iconEl.style.marginRight = iconLeft;
-      } else {
-        inputEl.style.paddingLeft = inputLeft;
-        iconEl.style.marginLeft = iconLeft;
-      }
+        // Set the input padding start and icon margin start
+        if (isRTL) {
+          inputEl.style.paddingRight = inputLeft;
+          iconEl.style.marginRight = iconLeft;
+        } else {
+          inputEl.style.paddingLeft = inputLeft;
+          iconEl.style.marginLeft = iconLeft;
+        }
+      });
     }
   }
 
@@ -411,25 +439,44 @@ export class Searchbar implements ComponentInterface {
     return true;
   }
 
+  /**
+   * Determines whether or not the clear button should be visible onscreen.
+   * Clear button should be shown if one of two conditions applies:
+   * 1. `showClearButton` is set to `always`.
+   * 2. `showClearButton` is set to `focus`, and the searchbar has been focused.
+   */
+  private shouldShowClearButton(): boolean {
+    if ((this.showClearButton === 'never') || (this.showClearButton === 'focus' && !this.focused)) {
+      return false;
+    }
+
+    return true;
+  }
+
   render() {
+    const { cancelButtonText } = this;
     const animated = this.animated && config.getBoolean('animated', true);
     const mode = getIonMode(this);
     const clearIcon = this.clearIcon || (mode === 'ios' ? 'close-circle' : 'close-sharp');
     const searchIcon = this.searchIcon || (mode === 'ios' ? 'search-outline' : 'search-sharp');
+    const shouldShowCancelButton = this.shouldShowCancelButton();
 
     const cancelButton = (this.showCancelButton !== 'never') && (
       <button
-        aria-label="cancel"
+        aria-label={cancelButtonText}
+
+        // Screen readers should not announce button if it is not visible on screen
+        aria-hidden={shouldShowCancelButton ? undefined : 'true'}
         type="button"
-        tabIndex={mode === 'ios' && !this.shouldShowCancelButton() ? -1 : undefined}
+        tabIndex={mode === 'ios' && !shouldShowCancelButton ? -1 : undefined}
         onMouseDown={this.onCancelSearchbar}
         onTouchStart={this.onCancelSearchbar}
         class="searchbar-cancel-button"
       >
-        <div>
+        <div aria-hidden="true">
           { mode === 'md'
             ? <ion-icon aria-hidden="true" mode={mode} icon={this.cancelButtonIcon} lazy={false}></ion-icon>
-            : this.cancelButtonText
+            : cancelButtonText
           }
         </div>
       </button>
@@ -439,8 +486,7 @@ export class Searchbar implements ComponentInterface {
       <Host
         role="search"
         aria-disabled={this.disabled ? 'true' : null}
-        class={{
-          ...createColorClasses(this.color),
+        class={createColorClasses(this.color, {
           [mode]: true,
           'searchbar-animated': animated,
           'searchbar-disabled': this.disabled,
@@ -448,8 +494,9 @@ export class Searchbar implements ComponentInterface {
           'searchbar-has-value': this.hasValue(),
           'searchbar-left-aligned': this.shouldAlignLeft,
           'searchbar-has-focus': this.focused,
+          'searchbar-should-show-clear': this.shouldShowClearButton(),
           'searchbar-should-show-cancel': this.shouldShowCancelButton()
-        }}
+        })}
       >
 
         <div class="searchbar-input-container">
@@ -459,6 +506,7 @@ export class Searchbar implements ComponentInterface {
             ref={el => this.nativeInput = el}
             class="searchbar-input"
             inputMode={this.inputmode}
+            enterKeyHint={this.enterkeyhint}
             onInput={this.onInput}
             onBlur={this.onBlur}
             onFocus={this.onFocus}
@@ -467,20 +515,20 @@ export class Searchbar implements ComponentInterface {
             value={this.getValue()}
             autoComplete={this.autocomplete}
             autoCorrect={this.autocorrect}
-            spellCheck={this.spellcheck}
+            spellcheck={this.spellcheck}
           />
 
           {mode === 'md' && cancelButton}
 
-          <ion-icon mode={mode} icon={searchIcon} lazy={false} class="searchbar-search-icon"></ion-icon>
+          <ion-icon aria-hidden="true" mode={mode} icon={searchIcon} lazy={false} class="searchbar-search-icon"></ion-icon>
 
           <button
             aria-label="reset"
             type="button"
             no-blur
             class="searchbar-clear-button"
-            onMouseDown={this.onClearInput}
-            onTouchStart={this.onClearInput}
+            onMouseDown={ev => this.onClearInput(ev, true)}
+            onTouchStart={ev => this.onClearInput(ev, true)}
           >
             <ion-icon aria-hidden="true" mode={mode} icon={clearIcon} lazy={false} class="searchbar-clear-icon"></ion-icon>
           </button>

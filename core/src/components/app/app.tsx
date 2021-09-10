@@ -6,15 +6,14 @@ import { isPlatform } from '../../utils/platform';
 
 @Component({
   tag: 'ion-app',
-  styleUrl: 'app.scss'
+  styleUrl: 'app.scss',
 })
 export class App implements ComponentInterface {
-
   @Element() el!: HTMLElement;
 
   componentDidLoad() {
     if (Build.isBrowser) {
-      rIC(() => {
+      rIC(async () => {
         const isHybrid = isPlatform(window, 'hybrid');
         if (!config.getBoolean('_testing')) {
           import('../../utils/tap-click').then(module => module.startTapClick(config));
@@ -25,8 +24,14 @@ export class App implements ComponentInterface {
         if (config.getBoolean('inputShims', needInputShims())) {
           import('../../utils/input-shims/input-shims').then(module => module.startInputShims(config));
         }
+        const hardwareBackButtonModule = await import('../../utils/hardware-back-button');
         if (config.getBoolean('hardwareBackButton', isHybrid)) {
-          import('../../utils/hardware-back-button').then(module => module.startHardwareBackButton());
+          hardwareBackButtonModule.startHardwareBackButton();
+        } else {
+          hardwareBackButtonModule.blockHardwareBackButton();
+        }
+        if (typeof (window as any) !== 'undefined') {
+          import('../../utils/keyboard/keyboard').then(module => module.startKeyboardAssist(window));
         }
         import('../../utils/focus-visible').then(module => module.startFocusVisible());
       });
@@ -40,7 +45,7 @@ export class App implements ComponentInterface {
         class={{
           [mode]: true,
           'ion-page': true,
-          'force-statusbar-padding': config.getBoolean('_forceStatusbarPadding')
+          'force-statusbar-padding': config.getBoolean('_forceStatusbarPadding'),
         }}
       >
       </Host>

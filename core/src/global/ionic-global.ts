@@ -1,6 +1,6 @@
 import { getMode, setMode } from '@stencil/core';
 
-import { Mode } from '../interface';
+import { IonicConfig, Mode } from '../interface';
 import { isPlatform, setupPlatforms } from '../utils/platform';
 
 import { config, configFromSession, configFromURL, saveConfig } from './config';
@@ -13,8 +13,10 @@ export const getIonMode = (ref?: any): Mode => {
   return (ref && getMode(ref)) || defaultMode;
 };
 
-export default () => {
-  const doc = document;
+export const initialize = (userConfig: IonicConfig = {}) => {
+  if (typeof (window as any) === 'undefined') { return; }
+
+  const doc = window.document;
   const win = window;
   Context.config = config;
   const Ionic = (win as any).Ionic = (win as any).Ionic || {};
@@ -28,7 +30,8 @@ export default () => {
     ...configFromSession(win),
     persistConfig: false,
     ...Ionic.config,
-    ...configFromURL(win)
+    ...configFromURL(win),
+    ...userConfig
   };
 
   config.reset(configObj);
@@ -49,16 +52,26 @@ export default () => {
     config.set('animated', false);
   }
 
+  const isIonicElement = (elm: any) =>
+        elm.tagName && elm.tagName.startsWith('ION-');
+
+  const isAllowedIonicModeValue = (elmMode: string) =>
+      ['ios', 'md'].includes(elmMode);
+
   setMode((elm: any) => {
     while (elm) {
       const elmMode = (elm as any).mode || elm.getAttribute('mode');
-
       if (elmMode) {
-        return elmMode;
+        if (isAllowedIonicModeValue(elmMode)) {
+          return elmMode;
+        } else if (isIonicElement(elm)) {
+          console.warn('Invalid ionic mode: "' + elmMode + '", expected: "ios" or "md"');
+        }
       }
-
       elm = elm.parentElement;
     }
     return defaultMode;
   });
 };
+
+export default initialize;

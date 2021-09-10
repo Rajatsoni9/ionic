@@ -13,6 +13,10 @@ const mdEasing = 'cubic-bezier(0.0,0.0,0.2,1)';
 const iosEasingReverse = 'cubic-bezier(1, 0, 0.68, 0.28)';
 const mdEasingReverse = 'cubic-bezier(0.4, 0, 0.6, 1)';
 
+/**
+ * @part container - The container for the menu content.
+ * @part backdrop - The backdrop that appears over the main content when the menu is open.
+ */
 @Component({
   tag: 'ion-menu',
   styleUrls: {
@@ -28,11 +32,6 @@ export class Menu implements ComponentInterface, MenuI {
   private gesture?: Gesture;
   private blocker = GESTURE_CONTROLLER.createBlocker({ disableScroll: true });
 
-  mode = getIonMode(this);
-
-  private easing: string = this.mode === 'ios' ? iosEasing : mdEasing;
-  private easingReverse: string = this.mode === 'ios' ? iosEasingReverse : mdEasingReverse;
-
   isAnimating = false;
   width!: number; // TODO
   _isOpen = false;
@@ -47,14 +46,18 @@ export class Menu implements ComponentInterface, MenuI {
   @State() isEndSide = false;
 
   /**
-   * The content's id the menu should use.
+   * The `id` of the main content. When using
+   * a router this is typically `ion-router-outlet`.
+   * When not using a router, this is typically
+   * your main view's `ion-content`. This is not the
+   * id of the `ion-content` inside of your `ion-menu`.
    */
-  @Prop({ reflectToAttr: true }) contentId?: string;
+  @Prop({ reflect: true }) contentId?: string;
 
   /**
    * An id for the menu.
    */
-  @Prop({ reflectToAttr: true }) menuId?: string;
+  @Prop({ reflect: true }) menuId?: string;
 
   /**
    * The display type of the menu.
@@ -97,7 +100,7 @@ export class Menu implements ComponentInterface, MenuI {
   /**
    * Which side of the view the menu should be placed.
    */
-  @Prop({ reflectToAttr: true }) side: Side = 'start';
+  @Prop({ reflect: true }) side: Side = 'start';
 
   @Watch('side')
   protected sideChanged() {
@@ -192,6 +195,7 @@ AFTER:
       gestureName: 'menu-swipe',
       gesturePriority: 30,
       threshold: 10,
+      blurOnStart: true,
       canStart: ev => this.canStart(ev),
       onWillStart: () => this.onWillStart(),
       onStart: () => this.onStart(),
@@ -335,9 +339,12 @@ AFTER:
 
   private async startAnimation(shouldOpen: boolean, animated: boolean): Promise<void> {
     const isReversed = !shouldOpen;
+    const mode = getIonMode(this);
+    const easing = mode === 'ios' ? iosEasing : mdEasing;
+    const easingReverse = mode === 'ios' ? iosEasingReverse : mdEasingReverse;
     const ani = (this.animation as Animation)!
       .direction((isReversed) ? 'reverse' : 'normal')
-      .easing((isReversed) ? this.easingReverse : this.easing)
+      .easing((isReversed) ? easingReverse : easing)
       .onFinish(() => {
         if (ani.getDirection() === 'reverse') {
           ani.direction('normal');
@@ -360,7 +367,9 @@ AFTER:
   }
 
   private canStart(detail: GestureDetail): boolean {
-    if (!this.canSwipe()) {
+    // Do not allow swipe gesture if a modal is open
+    const isModalPresented = !!document.querySelector('ion-modal.show-modal');
+    if (isModalPresented || !this.canSwipe()) {
       return false;
     }
     if (this._isOpen) {
@@ -442,7 +451,7 @@ AFTER:
      * for the cubic bezier curve (at least with web animations)
      * Not sure if the negative step value is an error or not
      */
-    const adjustedStepValue = (stepValue <= 0) ? 0.01 : stepValue;
+    const adjustedStepValue = (stepValue < 0) ? 0.01 : stepValue;
 
     /**
      * Animation will be reversed here, so need to
@@ -452,7 +461,7 @@ AFTER:
      * to the new easing curve, as `stepValue` is going to be given
      * in terms of a linear curve.
      */
-    newStepValue += getTimeGivenProgression([0, 0], [0.4, 0], [0.6, 1], [1, 1], clamp(0, adjustedStepValue, 1))[0];
+    newStepValue += getTimeGivenProgression([0, 0], [0.4, 0], [0.6, 1], [1, 1], clamp(0, adjustedStepValue, 0.9999))[0] || 0;
 
     const playTo = (this._isOpen) ? !shouldComplete : shouldComplete;
 
@@ -552,7 +561,8 @@ AFTER:
   }
 
   render() {
-    const { isEndSide, type, disabled, mode, isPaneVisible } = this;
+    const { isEndSide, type, disabled, isPaneVisible } = this;
+    const mode = getIonMode(this);
 
     return (
       <Host
@@ -568,6 +578,7 @@ AFTER:
       >
         <div
           class="menu-inner"
+          part="container"
           ref={el => this.menuInnerEl = el}
         >
           <slot></slot>
@@ -578,6 +589,7 @@ AFTER:
           class="menu-backdrop"
           tappable={false}
           stopPropagation={false}
+          part="backdrop"
         />
       </Host>
     );

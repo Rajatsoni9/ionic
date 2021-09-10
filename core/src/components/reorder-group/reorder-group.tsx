@@ -2,7 +2,7 @@ import { Component, ComponentInterface, Element, Event, EventEmitter, Host, Meth
 
 import { getIonMode } from '../../global/ionic-global';
 import { Gesture, GestureDetail, ItemReorderEventDetail } from '../../interface';
-import { hapticSelectionChanged, hapticSelectionEnd, hapticSelectionStart } from '../../utils/haptic';
+import { hapticSelectionChanged, hapticSelectionEnd, hapticSelectionStart } from '../../utils/native/haptic';
 
 const enum ReorderGroupState {
   Idle = 0,
@@ -219,7 +219,7 @@ export class ReorderGroup implements ComponentInterface {
       const toIndex = this.lastToIndex;
       const fromIndex = indexForItem(selectedItemEl);
 
-      if (toIndex !== fromIndex && (!listOrReorder || listOrReorder === true)) {
+      if (toIndex !== fromIndex && (listOrReorder === undefined || listOrReorder === true)) {
         const ref = (fromIndex < toIndex)
           ? children[toIndex + 1]
           : children[toIndex];
@@ -245,17 +245,16 @@ export class ReorderGroup implements ComponentInterface {
 
   private itemIndexForTop(deltaY: number): number {
     const heights = this.cachedHeights;
-    let i = 0;
 
     // TODO: since heights is a sorted array of integers, we can do
     // speed up the search using binary search. Remember that linear-search is still
     // faster than binary-search for small arrays (<64) due CPU branch misprediction.
-    for (i = 0; i < heights.length; i++) {
+    for (let i = 0; i < heights.length; i++) {
       if (heights[i] > deltaY) {
-        break;
+        return i;
       }
     }
-    return i;
+    return heights.length - 1;
   }
 
   /********* DOM WRITE ********* */

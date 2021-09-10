@@ -24,11 +24,11 @@ export const createSwipeToCloseGesture = (
       return true;
     }
 
-    const content = target.closest('ion-content');
-    if (content === null) {
+    const contentOrFooter = target.closest('ion-content, ion-footer');
+    if (contentOrFooter === null) {
       return true;
     }
-    // Target is in the content so we don't start the gesture.
+    // Target is in the content or the footer so do not start the gesture.
     // We could be more nuanced here and allow it for content that
     // does not need to scroll.
     return false;
@@ -39,16 +39,15 @@ export const createSwipeToCloseGesture = (
   };
 
   const onMove = (detail: GestureDetail) => {
-    const step = detail.deltaY / height;
-    if (step < 0) { return; }
+    const step = clamp(0.0001, detail.deltaY / height, 0.9999);
 
     animation.progressStep(step);
   };
 
   const onEnd = (detail: GestureDetail) => {
     const velocity = detail.velocityY;
-    const step = detail.deltaY / height;
-    if (step < 0) { return; }
+
+    const step = clamp(0.0001, detail.deltaY / height, 0.9999);
 
     const threshold = (detail.deltaY + velocity * 1000) / height;
 
@@ -70,13 +69,15 @@ export const createSwipeToCloseGesture = (
 
     animation
       .onFinish(() => {
-        if (shouldComplete) {
-          onDismiss();
-        } else {
+        if (!shouldComplete) {
           gesture.enable(true);
         }
       })
       .progressEnd((shouldComplete) ? 1 : 0, newStepValue, duration);
+
+    if (shouldComplete) {
+      onDismiss();
+    }
   };
 
   const gesture = createGesture({

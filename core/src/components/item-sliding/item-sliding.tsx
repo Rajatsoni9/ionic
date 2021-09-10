@@ -43,6 +43,8 @@ export class ItemSliding implements ComponentInterface {
   private rightOptions?: HTMLIonItemOptionsElement;
   private optsDirty = true;
   private gesture?: Gesture;
+  private closestContent: HTMLIonContentElement | null = null;
+  private initialContentScrollY = true;
 
   @Element() el!: HTMLIonItemSlidingElement;
 
@@ -66,6 +68,8 @@ export class ItemSliding implements ComponentInterface {
 
   async connectedCallback() {
     this.item = this.el.querySelector('ion-item');
+    this.closestContent = this.el.closest('ion-content');
+
     await this.updateOptions();
 
     this.gesture = (await import('../../utils/gesture')).createGesture({
@@ -73,7 +77,7 @@ export class ItemSliding implements ComponentInterface {
       gestureName: 'item-swipe',
       gesturePriority: 100,
       threshold: 5,
-      canStart: () => this.canStart(),
+      canStart: ev => this.canStart(ev),
       onStart: () => this.onStart(),
       onMove: ev => this.onMove(ev),
       onEnd: ev => this.onEnd(ev),
@@ -164,7 +168,7 @@ export class ItemSliding implements ComponentInterface {
   }
 
   /**
-   * Close the sliding item. Items can also be closed from the [List](../../list/List).
+   * Close the sliding item. Items can also be closed from the [List](../list).
    */
   @Method()
   async close() {
@@ -172,7 +176,7 @@ export class ItemSliding implements ComponentInterface {
   }
 
   /**
-   * Close all of the sliding items in the list. Items can also be closed from the [List](../../list/List).
+   * Close all of the sliding items in the list. Items can also be closed from the [List](../list).
    */
   @Method()
   async closeOpened(): Promise<boolean> {
@@ -209,7 +213,14 @@ export class ItemSliding implements ComponentInterface {
     this.leftOptions = this.rightOptions = undefined;
 
     for (let i = 0; i < options.length; i++) {
-      const option = await options.item(i).componentOnReady();
+      const item = options.item(i);
+
+      /**
+       * We cannot use the componentOnReady helper
+       * util here since we need to wait for all of these items
+       * to be ready before we set `this.sides` and `this.optsDirty`.
+       */
+      const option = ((item as any).componentOnReady !== undefined) ? await item.componentOnReady() : item;
 
       const side = isEndSide(option.side) ? 'end' : 'start';
 
@@ -225,17 +236,43 @@ export class ItemSliding implements ComponentInterface {
     this.sides = sides;
   }
 
-  private canStart(): boolean {
+  private canStart(gesture: GestureDetail): boolean {
+    /**
+     * If very close to start of the screen
+     * do not open left side so swipe to go
+     * back will still work.
+     */
+    const rtl = document.dir === 'rtl';
+    const atEdge = (rtl) ? (window.innerWidth - gesture.startX) < 15 : gesture.startX < 15;
+    if (atEdge) {
+      return false;
+    }
+
     const selected = openSlidingItem;
     if (selected && selected !== this.el) {
       this.closeOpened();
-      return false;
     }
 
     return !!(this.rightOptions || this.leftOptions);
   }
 
+  private disableContentScrollY() {
+    if (this.closestContent === null) { return }
+
+    this.initialContentScrollY = this.closestContent.scrollY;
+    this.closestContent.scrollY = false;
+  }
+
+  private restoreContentScrollY() {
+    if (this.closestContent === null) { return }
+
+    this.closestContent.scrollY = this.initialContentScrollY;
+  }
+
   private onStart() {
+    // Prevent scrolling during gesture
+    this.disableContentScrollY();
+
     openSlidingItem = this.el;
 
     if (this.tmr !== undefined) {
@@ -280,6 +317,9 @@ export class ItemSliding implements ComponentInterface {
   }
 
   private onEnd(gesture: GestureDetail) {
+    // Restore ion-content scrollY to initial value when gesture ends
+    this.restoreContentScrollY();
+
     const velocity = gesture.velocityX;
 
     let restingPoint = (this.openAmount > 0)

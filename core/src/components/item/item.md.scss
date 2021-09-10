@@ -8,14 +8,16 @@
 :host {
   --min-height: #{$item-md-min-height};
   --background: #{$item-md-background};
-  --background-activated: var(--background);
-  --background-focused: #{$item-md-background-focused};
-  --background-hover: #{$item-md-background-hover};
+  --background-activated: transparent;
+  --background-focused: currentColor;
+  --background-hover: currentColor;
+  --background-activated-opacity: 0;
+  --background-focused-opacity: .12;
+  --background-hover-opacity: .04;
   --border-color: #{$item-md-border-bottom-color};
   --color: #{$item-md-color};
-  --transition: background-color 300ms cubic-bezier(.4, 0, .2, 1);
+  --transition: opacity 15ms linear, background-color 15ms linear;
   --padding-start: #{$item-md-padding-start};
-  --color: #{$item-md-color};
   --border-color: #{$item-md-border-bottom-color};
   --inner-padding-end: #{$item-md-padding-end};
   --inner-border-width: #{0 0 $item-md-border-bottom-width 0};
@@ -31,22 +33,13 @@
 }
 
 
-// Material Design Item: Focused & Activated
+// Material Design Item: States
 // --------------------------------------------------
 
-:host(.ion-focused.activated) .item-native {
-  background: var(--background-focused);
-  color: var(--color-focused);
-}
-
-:host(.ion-color.activated) .item-native {
-  background: current-color(base);
-  color: current-color(contrast);
-}
-
-:host(.ion-color.ion-focused.activated) .item-native {
-  background: current-color(shade);
-  color: current-color(contrast);
+:host(.ion-color.ion-activated) .item-native {
+  &::after {
+    background: transparent;
+  }
 }
 
 
@@ -218,13 +211,21 @@
 }
 
 
-
 // Material Design Floating/Stacked Label
 // --------------------------------------------------
 
 :host(.item-label-stacked) ::slotted([slot="end"]),
 :host(.item-label-floating) ::slotted([slot="end"]) {
   @include margin($item-md-label-slot-end-margin-top, $item-md-label-slot-end-margin-end, $item-md-label-slot-end-margin-bottom, $item-md-label-slot-end-margin-start);
+}
+
+
+// Material Design Fixed Labels
+// --------------------------------------------------
+
+:host(.item-label-fixed) ::slotted(ion-select),
+:host(.item-label-fixed) ::slotted(ion-datetime) {
+  --padding-start: 8px;
 }
 
 
@@ -279,4 +280,15 @@
 :host(.item-has-focus:not(.ion-color)) ::slotted(.label-stacked),
 :host(.item-has-focus:not(.ion-color)) ::slotted(.label-floating) {
   color: $label-md-text-color-focused;
+}
+
+// Material Design Inputs: Highlight Color
+// --------------------------------------------------
+
+:host(.ion-color) {
+  --highlight-color-focused: #{current-color(contrast)};
+}
+
+:host(.item-label-color) {
+  --highlight-color-focused: #{current-color(base)};
 }

@@ -13,11 +13,29 @@ export const shadow = <T extends Element>(el: T): ShadowRoot | T => {
 };
 
 const getLargeTitle = (refEl: any) => {
-  return refEl.querySelector('ion-header:not(.header-collapse-condense-inactive) ion-title[size=large]');
+  const tabs = (refEl.tagName === 'ION-TABS') ? refEl : refEl.querySelector('ion-tabs');
+  const query = 'ion-content ion-header:not(.header-collapse-condense-inactive) ion-title.title-large';
+
+  if (tabs != null) {
+    const activeTab = tabs.querySelector('ion-tab:not(.tab-hidden), .ion-page:not(.ion-page-hidden)');
+    return (activeTab != null) ? activeTab.querySelector(query) : null;
+  }
+
+  return refEl.querySelector(query);
 };
 
 const getBackButton = (refEl: any, backDirection: boolean) => {
-  const buttonsList = refEl.querySelectorAll('ion-buttons');
+  const tabs = (refEl.tagName === 'ION-TABS') ? refEl : refEl.querySelector('ion-tabs');
+  let buttonsList = [];
+
+  if (tabs != null) {
+    const activeTab = tabs.querySelector('ion-tab:not(.tab-hidden), .ion-page:not(.ion-page-hidden)');
+    if (activeTab != null) {
+      buttonsList = activeTab.querySelectorAll('ion-buttons');
+    }
+  } else {
+    buttonsList = refEl.querySelectorAll('ion-buttons');
+  }
 
   for (const buttons of buttonsList) {
     const parentHeader = buttons.closest('ion-header');
@@ -141,7 +159,7 @@ const animateBackButton = (rootAnimation: Animation, rtl: boolean, backDirection
 };
 
 const animateLargeTitle = (rootAnimation: Animation, rtl: boolean, backDirection: boolean, largeTitleEl: any, largeTitleBox: DOMRect, backButtonBox: DOMRect) => {
-  const TITLE_START_OFFSET = (rtl) ? `calc(100% - ${largeTitleEl.right}px)` : `${largeTitleEl.left}px`;
+  const TITLE_START_OFFSET = (rtl) ? `calc(100% - ${largeTitleBox.right}px)` : `${largeTitleBox.left}px`;
   const START_TRANSLATE = (rtl) ? '-18px' : '18px';
   const ORIGIN_X = (rtl) ? 'right' : 'left';
 
@@ -277,7 +295,6 @@ export const iosTransitionAnimation = (navEl: HTMLElement, opts: TransitionOptio
     const enteringContentHasLargeTitle = enteringEl.querySelector('ion-header.header-collapse-condense');
 
     const { forward, backward } = createLargeTitleTransition(rootAnimation, isRTL, backDirection, enteringEl, leavingEl);
-
     enteringToolBarEls.forEach(enteringToolBarEl => {
       const enteringToolBar = createAnimation();
       enteringToolBar.addElement(enteringToolBarEl);
@@ -342,10 +359,14 @@ export const iosTransitionAnimation = (navEl: HTMLElement, opts: TransitionOptio
         }
 
         enteringToolBarItems.fromTo('transform', `translateX(${OFF_RIGHT})`, `translateX(${CENTER})`);
+        enteringToolBarBg.beforeClearStyles([OPACITY, 'transform']);
 
-        enteringToolBarBg
-          .beforeClearStyles([OPACITY])
-          .fromTo(OPACITY, 0.01, 1);
+        const translucentHeader = parentHeader?.translucent;
+        if (!translucentHeader) {
+          enteringToolBarBg.fromTo(OPACITY, 0.01, 'var(--opacity)');
+        } else {
+          enteringToolBarBg.fromTo('transform', (isRTL ? 'translateX(-100%)' : 'translateX(100%)'), 'translateX(0px)');
+        }
 
         // forward direction, entering page has a back button
         if (!forward) {
@@ -365,12 +386,18 @@ export const iosTransitionAnimation = (navEl: HTMLElement, opts: TransitionOptio
 
     // setup leaving view
     if (leavingEl) {
-
       const leavingContent = createAnimation();
       const leavingContentEl = leavingEl.querySelector(':scope > ion-content');
+      const leavingToolBarEls = leavingEl.querySelectorAll(':scope > ion-header > ion-toolbar');
+      const leavingHeaderEls = leavingEl.querySelectorAll(':scope > ion-header > *:not(ion-toolbar), :scope > ion-footer > *');
 
-      leavingContent.addElement(leavingContentEl!); // REVIEW
-      leavingContent.addElement(leavingEl.querySelectorAll(':scope > ion-header > *:not(ion-toolbar), :scope > ion-footer > *'));
+      if (!leavingContentEl && leavingToolBarEls.length === 0 && leavingHeaderEls.length === 0) {
+        leavingContent.addElement(leavingEl.querySelector(':scope > .ion-page, :scope > ion-nav, :scope > ion-tabs')!);  // REVIEW
+      } else {
+        leavingContent.addElement(leavingContentEl!);  // REVIEW
+        leavingContent.addElement(leavingHeaderEls);
+      }
+
       rootAnimation.addAnimation(leavingContent);
 
       if (backDirection) {
@@ -424,7 +451,6 @@ export const iosTransitionAnimation = (navEl: HTMLElement, opts: TransitionOptio
         }
       }
 
-      const leavingToolBarEls = leavingEl.querySelectorAll(':scope > ion-header > ion-toolbar');
       leavingToolBarEls.forEach(leavingToolBarEl => {
         const leavingToolBar = createAnimation();
         leavingToolBar.addElement(leavingToolBarEl);
@@ -479,12 +505,15 @@ export const iosTransitionAnimation = (navEl: HTMLElement, opts: TransitionOptio
           }
 
           leavingToolBarItems.fromTo('transform', `translateX(${CENTER})`, (isRTL ? 'translateX(-100%)' : 'translateX(100%)'));
-
+          leavingToolBarBg.beforeClearStyles([OPACITY, 'transform']);
           // leaving toolbar, back direction, and there's no entering toolbar
           // should just slide out, no fading out
-          leavingToolBarBg
-            .beforeClearStyles([OPACITY])
-            .fromTo(OPACITY, 1, 0.01);
+          const translucentHeader = parentHeader?.translucent;
+          if (!translucentHeader) {
+            leavingToolBarBg.fromTo(OPACITY, 'var(--opacity)', 0);
+          } else {
+            leavingToolBarBg.fromTo('transform', 'translateX(0px)', (isRTL ? 'translateX(-100%)' : 'translateX(100%)'));
+          }
 
           if (backButtonEl && !backward) {
             const leavingBackBtnText = createAnimation();

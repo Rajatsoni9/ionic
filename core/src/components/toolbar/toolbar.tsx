@@ -1,4 +1,4 @@
-import { Component, ComponentInterface, Element, Host, Listen, Prop, h } from '@stencil/core';
+import { Component, ComponentInterface, Element, Host, Listen, Prop, forceUpdate, h } from '@stencil/core';
 
 import { getIonMode } from '../../global/ionic-global';
 import { Color, CssClassMap, StyleEventDetail } from '../../interface';
@@ -31,7 +31,7 @@ export class Toolbar implements ComponentInterface {
    * Default options are: `"primary"`, `"secondary"`, `"tertiary"`, `"success"`, `"warning"`, `"danger"`, `"light"`, `"medium"`, and `"dark"`.
    * For more information on colors, see [theming](/docs/theming/basics).
    */
-  @Prop() color?: Color;
+  @Prop({ reflect: true }) color?: Color;
 
   componentWillLoad() {
     const buttons = Array.from(this.el.querySelectorAll('ion-buttons'));
@@ -76,7 +76,7 @@ export class Toolbar implements ComponentInterface {
 
     if (hasStyleChange) {
       this.childrenStyles.set(tagName, newStyles);
-      this.el.forceUpdate();
+      forceUpdate(this);
     }
   }
 
@@ -89,10 +89,11 @@ export class Toolbar implements ComponentInterface {
     return (
       <Host
         class={{
-          'in-toolbar': hostContext('ion-toolbar', this.el),
-          [mode]: true,
           ...childStyles,
-          ...createColorClasses(this.color),
+          ...createColorClasses(this.color, {
+            [mode]: true,
+            'in-toolbar': hostContext('ion-toolbar', this.el),
+          }),
         }}
       >
         <div class="toolbar-background"></div>

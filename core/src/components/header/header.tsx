@@ -1,8 +1,10 @@
-import { Component, ComponentInterface, Element, Host, Prop, h, readTask, writeTask } from '@stencil/core';
+import { Component, ComponentInterface, Element, Host, Prop, h, writeTask } from '@stencil/core';
 
 import { getIonMode } from '../../global/ionic-global';
+import { inheritAttributes } from '../../utils/helpers';
 
 import { cloneElement, createHeaderIndex, handleContentScroll, handleToolbarIntersection, setHeaderActive, setToolbarBackgroundOpacity } from './header.utils';
+
 /**
  * @virtualProp {"ios" | "md"} mode - The mode determines which platform styles to use.
  */
@@ -20,6 +22,7 @@ export class Header implements ComponentInterface {
   private contentScrollCallback?: any;
   private intersectionObserver?: any;
   private collapsibleMainHeader?: HTMLElement;
+  private inheritedAttributes: { [k: string]: any } = {};
 
   @Element() el!: HTMLElement;
 
@@ -41,6 +44,10 @@ export class Header implements ComponentInterface {
    */
   @Prop() translucent = false;
 
+  componentWillLoad() {
+    this.inheritedAttributes = inheritAttributes(this.el, ['role']);
+  }
+
   async componentDidLoad() {
     await this.checkCollapsibleHeader();
   }
@@ -49,7 +56,7 @@ export class Header implements ComponentInterface {
     await this.checkCollapsibleHeader();
   }
 
-  componentDidUnload() {
+  disconnectedCallback() {
     this.destroyCollapsibleHeader();
   }
 
@@ -63,6 +70,13 @@ export class Header implements ComponentInterface {
     } else if (canCollapse && !this.collapsibleHeaderInitialized) {
       const pageEl = this.el.closest('ion-app,ion-page,.ion-page,page-inner');
       const contentEl = (pageEl) ? pageEl.querySelector('ion-content') : null;
+
+      // Cloned elements are always needed in iOS transition
+      writeTask(() => {
+        const title = cloneElement('ion-title') as HTMLIonTitleElement;
+        title.size = 'large';
+        cloneElement('ion-back-button');
+      });
 
       await this.setupCollapsibleHeader(contentEl, pageEl);
     }
@@ -87,6 +101,7 @@ export class Header implements ComponentInterface {
 
   private async setupCollapsibleHeader(contentEl: HTMLIonContentElement | null, pageEl: Element | null) {
     if (!contentEl || !pageEl) { console.error('ion-header requires a content to collapse, make sure there is an ion-content.'); return; }
+    if (typeof (IntersectionObserver as any) === 'undefined') { return; }
 
     this.scrollEl = await contentEl.getScrollElement();
 
@@ -106,41 +121,39 @@ export class Header implements ComponentInterface {
       setToolbarBackgroundOpacity(toolbar, 0);
     });
 
-    readTask(() => {
-        const mainHeaderHeight = mainHeaderIndex.el.clientHeight;
+    /**
+     * Handle interaction between toolbar collapse and
+     * showing/hiding content in the primary ion-header
+     * as well as progressively showing/hiding the main header
+     * border as the top-most toolbar collapses or expands.
+     */
+    const toolbarIntersection = (ev: any) => { handleToolbarIntersection(ev, mainHeaderIndex, scrollHeaderIndex, this.scrollEl!); };
 
-        /**
-         * Handle interaction between toolbar collapse and
-         * showing/hiding content in the primary ion-header
-         * as well as progressively showing/hiding the main header
-         * border as the top-most toolbar collapses or expands.
-         */
-        const toolbarIntersection = (ev: any) => { handleToolbarIntersection(ev, mainHeaderIndex, scrollHeaderIndex); };
-        this.intersectionObserver = new IntersectionObserver(toolbarIntersection, { threshold: [0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1], rootMargin: `-${mainHeaderHeight}px 0px 0px 0px` });
-        this.intersectionObserver.observe(scrollHeaderIndex.toolbars[scrollHeaderIndex.toolbars.length - 1].el);
+    this.intersectionObserver = new IntersectionObserver(toolbarIntersection, { root: contentEl, threshold: [0.25, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1] });
+    this.intersectionObserver.observe(scrollHeaderIndex.toolbars[scrollHeaderIndex.toolbars.length - 1].el);
 
-      /**
-       * Handle scaling of large iOS titles and
-       * showing/hiding border on last toolbar
-       * in primary header
-       */
-        this.contentScrollCallback = () => { handleContentScroll(this.scrollEl!, scrollHeaderIndex, contentEl); };
-        this.scrollEl!.addEventListener('scroll', this.contentScrollCallback);
-    });
+    /**
+     * Handle scaling of large iOS titles and
+     * showing/hiding border on last toolbar
+     * in primary header
+     */
+    this.contentScrollCallback = () => { handleContentScroll(this.scrollEl!, scrollHeaderIndex, contentEl); };
+    this.scrollEl!.addEventListener('scroll', this.contentScrollCallback);
 
     writeTask(() => {
-      cloneElement('ion-title');
-      cloneElement('ion-back-button');
-
-      this.collapsibleMainHeader!.classList.add('header-collapse-main');
+      if (this.collapsibleMainHeader !== undefined) {
+        this.collapsibleMainHeader.classList.add('header-collapse-main');
+      }
     });
 
     this.collapsibleHeaderInitialized = true;
   }
 
   render() {
+    const { translucent, inheritedAttributes } = this;
     const mode = getIonMode(this);
     const collapse = this.collapse || 'none';
+
     return (
       <Host
         role="banner"
@@ -154,7 +167,12 @@ export class Header implements ComponentInterface {
           [`header-collapse-${collapse}`]: true,
           [`header-translucent-${mode}`]: this.translucent,
         }}
+        {...inheritedAttributes}
       >
+        { mode === 'ios' && translucent &&
+          <div class="header-background"></div>
+        }
+        <slot></slot>
       </Host>
     );
   }

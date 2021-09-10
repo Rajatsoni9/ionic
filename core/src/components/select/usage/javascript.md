@@ -1,4 +1,4 @@
-## Single Selection
+### Single Selection
 
 ```html
 <ion-list>
@@ -29,7 +29,7 @@
 </ion-list>
 ```
 
-## Multiple Selection
+### Multiple Selection
 
 ```html
 <ion-list>
@@ -57,17 +57,22 @@
 
   <ion-item>
     <ion-label>Pets</ion-label>
-    <ion-select multiple="true">
-      <ion-select-option value="bird" selected>Bird</ion-select-option>
+    <ion-select id="multiple" multiple="true">
+      <ion-select-option value="bird">Bird</ion-select-option>
       <ion-select-option value="cat">Cat</ion-select-option>
-      <ion-select-option value="dog" selected>Dog</ion-select-option>
+      <ion-select-option value="dog">Dog</ion-select-option>
       <ion-select-option value="honeybadger">Honey Badger</ion-select-option>
     </ion-select>
   </ion-item>
 </ion-list>
 ```
 
-## Objects as Values
+```javascript
+const select = document.querySelector('multiple');
+select.value = ['bird', 'dog'];
+```
+
+### Objects as Values
 
 ```html
 <ion-list>
@@ -114,14 +119,15 @@
     let selectOption = document.createElement('ion-select-option');
     selectOption.value = option;
     selectOption.textContent = option.first + ' ' + option.last;
-    selectOption.selected = (i === 0);
 
     objectSelectElement.appendChild(selectOption)
   });
+
+  objectSelectElement.value = objectOptions[0];
 }
 ```
 
-## Interface Options
+### Interface Options
 
 ```html
 <ion-list>

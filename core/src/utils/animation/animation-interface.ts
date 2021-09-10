@@ -27,11 +27,11 @@ export interface Animation {
   /**
    * Destroy the animation and all child animations.
    */
-  destroy(): void;
+  destroy(clearStyleSheets?: boolean): void;
 
-  progressStart(forceLinearEasing: boolean, step?: number): void;
-  progressStep(step: number): void;
-  progressEnd(playTo: 0 | 1 | undefined, step: number, dur?: number): void;
+  progressStart(forceLinearEasing?: boolean, step?: number): Animation;
+  progressStep(step: number): Animation;
+  progressEnd(playTo: 0 | 1 | undefined, step: number, dur?: number): Animation;
 
   from(property: string, value: any): Animation;
   to(property: string, value: any): Animation;

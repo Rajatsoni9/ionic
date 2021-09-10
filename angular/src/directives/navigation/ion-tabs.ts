@@ -86,11 +86,27 @@ export class IonTabs {
    *   b. If the last route view doesn't exist, then navigate
    *      to the default tabRootUrl
    */
-  @HostListener('ionTabButtonClick', ['$event.detail.tab'])
-  select(tab: string) {
+  @HostListener('ionTabButtonClick', ['$event'])
+  select(ev: CustomEvent) {
+    const tab = ev.detail.tab;
     const alreadySelected = this.outlet.getActiveStackId() === tab;
     const tabRootUrl = `${this.outlet.tabsPrefix}/${tab}`;
+
+    /**
+     * If this is a nested tab, prevent the event
+     * from bubbling otherwise the outer tabs
+     * will respond to this event too, causing
+     * the app to get directed to the wrong place.
+     */
+    ev.stopPropagation();
+
     if (alreadySelected) {
+      const activeStackId = this.outlet.getActiveStackId();
+      const activeView = this.outlet.getLastRouteView(activeStackId);
+
+      // If on root tab, do not navigate to root tab again
+      if (activeView.url === tabRootUrl) { return; }
+
       const rootView = this.outlet.getRootView(tab);
       const navigationExtras = rootView && tabRootUrl === rootView.url && rootView.savedExtras;
       return this.navCtrl.navigateRoot(tabRootUrl, {

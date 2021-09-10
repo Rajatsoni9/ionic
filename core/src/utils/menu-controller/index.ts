@@ -1,4 +1,6 @@
-import { AnimationBuilder, MenuI } from '../../interface';
+import { AnimationBuilder, BackButtonEvent, MenuI } from '../../interface';
+import { MENU_BACK_BUTTON_PRIORITY } from '../hardware-back-button';
+import { componentOnReady } from '../helpers';
 
 import { menuOverlayAnimation } from './animations/overlay';
 import { menuPushAnimation } from './animations/push';
@@ -198,13 +200,25 @@ const createMenuController = () => {
   const waitUntilReady = () => {
     return Promise.all(
       Array.from(document.querySelectorAll('ion-menu'))
-        .map(menu => menu.componentOnReady())
+        .map(menu => new Promise(resolve => componentOnReady(menu, resolve)))
     );
   };
 
   registerAnimation('reveal', menuRevealAnimation);
   registerAnimation('push', menuPushAnimation);
   registerAnimation('overlay', menuOverlayAnimation);
+
+  /* tslint:disable-next-line */
+  if (typeof document !== 'undefined') {
+    document.addEventListener('ionBackButton', (ev: any) => {
+      const openMenu = _getOpenSync();
+      if (openMenu) {
+        (ev as BackButtonEvent).detail.register(MENU_BACK_BUTTON_PRIORITY, () => {
+          return openMenu.close();
+        });
+      }
+    });
+  }
 
   return {
     registerAnimation,

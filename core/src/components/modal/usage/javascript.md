@@ -23,12 +23,15 @@ function presentModal() {
   // create the modal with the `modal-page` component
   const modalElement = document.createElement('ion-modal');
   modalElement.component = 'modal-page';
+  modalElement.cssClass = 'my-custom-class';
 
   // present the modal
   document.body.appendChild(modalElement);
   return modalElement.present();
 }
 ```
+
+> If you need a wrapper element inside of your modal component, we recommend using a `<div class="ion-page">` so that the component dimensions are still computed properly.
 
 ### Passing Data
 
@@ -37,6 +40,7 @@ During creation of a modal, data can be passed in through the `componentProps`. 
 ```javascript
 const modalElement = document.createElement('ion-modal');
 modalElement.component = 'modal-page';
+modalElement.cssClass = 'my-custom-class';
 modalElement.componentProps = {
   'firstName': 'Douglas',
   'lastName': 'Adams',
@@ -60,7 +64,7 @@ customElements.define('modal-page', class extends HTMLElement {
 
 ### Dismissing a Modal
 
-A modal can be dismissed by calling the dismiss method on the modal controller and optionally passing any data from the modal.
+A modal can be dismissed by calling the dismiss method and optionally passing any data from the modal.
 
 ```javascript
 async function dismissModal() {
@@ -82,9 +86,12 @@ console.log(data);
 
 Modals in iOS mode have the ability to be presented in a card-style and swiped to close. The card-style presentation and swipe to close gesture are not mutually exclusive, meaning you can pick and choose which features you want to use. For example, you can have a card-style modal that cannot be swiped or a full sized modal that can be swiped.
 
+> Card style modals when running on iPhone-sized devices do not have backdrops. As a result, the `--backdrop-opacity` variable will not have any effect.
+
 ```javascript
 const modalElement = document.createElement('ion-modal');
 modalElement.component = 'modal-page';
+modalElement.cssClass = 'my-custom-class';
 modalElement.swipeToClose = true;
 modalElement.presentingElement = document.querySelector('ion-nav');
 ```
@@ -94,6 +101,7 @@ In most scenarios, using the `ion-nav` element as the `presentingElement` is fin
 ```javascript
 const modalElement = document.createElement('ion-modal');
 modalElement.component = 'modal-page';
+modalElement.cssClass = 'my-custom-class';
 modalElement.swipeToClose = true;
 modalElement.presentingElement = await modalController.getTop(); // Get the top-most ion-modal
 ```
