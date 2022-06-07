@@ -1,13 +1,30 @@
 import { Location } from '@angular/common';
-import { Attribute, ComponentFactoryResolver, ComponentRef, Directive, ElementRef, EventEmitter, Injector, NgZone, OnDestroy, OnInit, Optional, Output, SkipSelf, ViewContainerRef } from '@angular/core';
-import { ActivatedRoute, ChildrenOutletContexts, OutletContext, PRIMARY_OUTLET, Router } from '@angular/router';
+import {
+  ComponentFactoryResolver,
+  ComponentRef,
+  ElementRef,
+  Injector,
+  NgZone,
+  OnDestroy,
+  OnInit,
+  ViewContainerRef,
+  Attribute,
+  Directive,
+  EventEmitter,
+  Optional,
+  Output,
+  SkipSelf,
+} from '@angular/core';
+import { OutletContext, Router, ActivatedRoute, ChildrenOutletContexts, PRIMARY_OUTLET } from '@angular/router';
 import { componentOnReady } from '@ionic/core';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { Observable, BehaviorSubject } from 'rxjs';
 import { distinctUntilChanged, filter, switchMap } from 'rxjs/operators';
 
-import { AnimationBuilder } from '../../';
+import { EnvironmentInjector } from '../../di/r3_injector';
+import { AnimationBuilder } from '../../ionic-core';
 import { Config } from '../../providers/config';
 import { NavController } from '../../providers/nav-controller';
+import { isComponentFactoryResolver } from '../../util/util';
 
 import { StackController } from './stack-controller';
 import { RouteView, getUrl } from './stack-utils';
@@ -15,8 +32,10 @@ import { RouteView, getUrl } from './stack-utils';
 @Directive({
   selector: 'ion-router-outlet',
   exportAs: 'outlet',
-  inputs: ['animated', 'animation', 'swipeGesture']
+  // eslint-disable-next-line @angular-eslint/no-inputs-metadata-property
+  inputs: ['animated', 'animation', 'swipeGesture'],
 })
+// eslint-disable-next-line @angular-eslint/directive-class-suffix
 export class IonRouterOutlet implements OnDestroy, OnInit {
   nativeEl: HTMLIonRouterOutletElement;
 
@@ -37,7 +56,9 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
   tabsPrefix: string | undefined;
 
   @Output() stackEvents = new EventEmitter<any>();
+  // eslint-disable-next-line @angular-eslint/no-output-rename
   @Output('activate') activateEvents = new EventEmitter<any>();
+  // eslint-disable-next-line @angular-eslint/no-output-rename
   @Output('deactivate') deactivateEvents = new EventEmitter<any>();
 
   set animation(animation: AnimationBuilder) {
@@ -51,21 +72,23 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
   set swipeGesture(swipe: boolean) {
     this._swipeGesture = swipe;
 
-    this.nativeEl.swipeHandler = swipe ? {
-      canStart: () => this.stackCtrl.canGoBack(1) && !this.stackCtrl.hasRunningTask(),
-      onStart: () => this.stackCtrl.startBackTransition(),
-      onEnd: shouldContinue => this.stackCtrl.endBackTransition(shouldContinue)
-    } : undefined;
+    this.nativeEl.swipeHandler = swipe
+      ? {
+          canStart: () => this.stackCtrl.canGoBack(1) && !this.stackCtrl.hasRunningTask(),
+          onStart: () => this.stackCtrl.startBackTransition(),
+          onEnd: (shouldContinue) => this.stackCtrl.endBackTransition(shouldContinue),
+        }
+      : undefined;
   }
 
   constructor(
     private parentContexts: ChildrenOutletContexts,
     private location: ViewContainerRef,
-    private resolver: ComponentFactoryResolver,
     @Attribute('name') name: string,
     @Optional() @Attribute('tabs') tabs: string,
     private config: Config,
     private navCtrl: NavController,
+    @Optional() private environmentInjector: EnvironmentInjector,
     commonLocation: Location,
     elementRef: ElementRef,
     router: Router,
@@ -93,12 +116,12 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
       // If the outlet was not instantiated at the time the route got activated we need to populate
       // the outlet when it is initialized (ie inside a NgIf)
       const context = this.getContext();
-      if (context && context.route) {
+      if (context?.route) {
         this.activateWith(context.route, context.resolver || null);
       }
     }
 
-    new Promise(resolve => componentOnReady(this.nativeEl, resolve)).then(() => {
+    new Promise((resolve) => componentOnReady(this.nativeEl, resolve)).then(() => {
       if (this._swipeGesture === undefined) {
         this.swipeGesture = this.config.getBoolean('swipeBackEnabled', (this.nativeEl as any).mode === 'ios');
       }
@@ -109,7 +132,7 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
     return !!this.activated;
   }
 
-  get component(): object {
+  get component(): Record<string, unknown> {
     if (!this.activated) {
       throw new Error('Outlet is not activated');
     }
@@ -140,13 +163,15 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
   /**
    * Called when the `RouteReuseStrategy` instructs to re-attach a previously detached subtree
    */
-  attach(_ref: ComponentRef<any>, _activatedRoute: ActivatedRoute) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  attach(_ref: ComponentRef<any>, _activatedRoute: ActivatedRoute): void {
     throw new Error('incompatible reuse strategy');
   }
 
   deactivate(): void {
     if (this.activated) {
       if (this.activatedView) {
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const context = this.getContext()!;
         this.activatedView.savedData = new Map(context.children['contexts']);
 
@@ -172,7 +197,7 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
           const contextSnapshot = context.route.snapshot;
 
           this.activatedView.savedExtras.queryParams = contextSnapshot.queryParams;
-          this.activatedView.savedExtras.fragment = contextSnapshot.fragment;
+          (this.activatedView.savedExtras.fragment as string | null) = contextSnapshot.fragment;
         }
       }
       const c = this.component;
@@ -183,7 +208,10 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
     }
   }
 
-  activateWith(activatedRoute: ActivatedRoute, resolver: ComponentFactoryResolver | null) {
+  activateWith(
+    activatedRoute: ActivatedRoute,
+    resolverOrInjector?: ComponentFactoryResolver | EnvironmentInjector | null
+  ): void {
     if (this.isActivated) {
       throw new Error('Cannot activate an already activated outlet');
     }
@@ -196,6 +224,7 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
       const saved = enteringView.savedData;
       if (saved) {
         // self-restore
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         const context = this.getContext()!;
         context.children['contexts'] = saved;
       }
@@ -203,10 +232,8 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
       this.updateActivatedRouteProxy(cmpRef.instance, activatedRoute);
     } else {
       const snapshot = (activatedRoute as any)._futureSnapshot;
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const component = snapshot.routeConfig!.component as any;
-      resolver = resolver || this.resolver;
-
-      const factory = resolver.resolveComponentFactory(component);
       const childContexts = this.parentContexts.getOrCreateContext(this.name).children;
 
       // We create an activated route proxy object that will maintain future updates for this component
@@ -215,8 +242,35 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
       const activatedRouteProxy = this.createActivatedRouteProxy(component$, activatedRoute);
 
       const injector = new OutletInjector(activatedRouteProxy, childContexts, this.location.injector);
-      cmpRef = this.activated = this.location.createComponent(factory, this.location.length, injector);
 
+      if (resolverOrInjector && isComponentFactoryResolver(resolverOrInjector)) {
+        // Backwards compatibility for Angular 13 and lower
+        const factory = resolverOrInjector.resolveComponentFactory(component);
+        cmpRef = this.activated = this.location.createComponent(factory, this.location.length, injector);
+      } else {
+        /**
+         * Angular 14 and higher.
+         *
+         * TODO: FW-1641: Migrate once Angular 13 support is dropped.
+         *
+         * When we drop < Angular 14, we can replace the following code with:
+         * ```ts
+          const environmentInjector = resolverOrInjector ?? this.environmentInjector;
+            cmpRef = this.activated = location.createComponent(component, {
+              index: location.length,
+              injector,
+              environmentInjector,
+            });
+         * ```
+         * where `this.environmentInjector` is a provider of `EnvironmentInjector` from @angular/core.
+         */
+        const environmentInjector = resolverOrInjector ?? this.environmentInjector;
+        cmpRef = this.activated = this.location.createComponent(component, {
+          index: this.location.length,
+          injector,
+          environmentInjector,
+        } as any);
+      }
       // Once the component is created we can push it to our local subject supplied to the proxy
       component$.next(cmpRef.instance);
 
@@ -230,7 +284,7 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
     }
 
     this.activatedView = enteringView;
-    this.stackCtrl.setActive(enteringView).then(data => {
+    this.stackCtrl.setActive(enteringView).then((data) => {
       this.navCtrl.setTopOutlet(this);
       this.activateEvents.emit(cmpRef.instance);
       this.stackEvents.emit(data);
@@ -313,11 +367,11 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
   private proxyObservable(component$: Observable<any>, path: string): Observable<any> {
     return component$.pipe(
       // First wait until the component instance is pushed
-      filter(component => !!component),
-      switchMap(component =>
+      filter((component) => !!component),
+      switchMap((component) =>
         this.currentActivatedRoute$.pipe(
-          filter(current => current !== null && current.component === component),
-          switchMap(current => current && (current.activatedRoute as any)[path]),
+          filter((current) => current !== null && current.component === component),
+          switchMap((current) => current && (current.activatedRoute as any)[path]),
           distinctUntilChanged()
         )
       )
@@ -344,11 +398,7 @@ export class IonRouterOutlet implements OnDestroy, OnInit {
 }
 
 class OutletInjector implements Injector {
-  constructor(
-    private route: ActivatedRoute,
-    private childContexts: ChildrenOutletContexts,
-    private parent: Injector
-  ) { }
+  constructor(private route: ActivatedRoute, private childContexts: ChildrenOutletContexts, private parent: Injector) {}
 
   get(token: any, notFoundValue?: any): any {
     if (token === ActivatedRoute) {
@@ -359,7 +409,6 @@ class OutletInjector implements Injector {
       return this.childContexts;
     }
 
-    // tslint:disable-next-line
     return this.parent.get(token, notFoundValue);
   }
 }
