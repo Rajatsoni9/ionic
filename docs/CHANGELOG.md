@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 See [Conventional Commits](https://conventionalcommits.org) for commit guidelines.
 
+## [6.1.9-nightly.20220609](https://github.com/ionic-team/ionic-docs/compare/v5.0.0-beta.4...v6.1.9-nightly.20220609) (2022-06-09)
+
+**Note:** Version bump only for package @ionic/docs
+
+
+
+
+
 ## [6.1.8](https://github.com/ionic-team/ionic-docs/compare/v6.1.7...v6.1.8) (2022-06-01)
 
 **Note:** Version bump only for package @ionic/docs
